@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>River Rescue — Emoji Bullet Hell</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Boogaloo&family=Fredoka+One&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --water: #1a6fa8;
+    --water-light: #2288cc;
+    --sky: #87ceeb;
+    --hud-bg: rgba(0,0,0,0.55);
+    --accent: #f9e04b;
+    --danger: #ff4d4d;
+    --safe: #52e06a;
+    --font: 'Boogaloo', cursive;
+  }
+
+  body {
+    background: #0d1b2a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: var(--font);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #game-wrapper {
+    position: relative;
+    width: 800px;
+    height: 500px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(26,111,168,0.6), 0 0 0 3px #2288cc44;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: var(--hud-bg);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+    z-index: 10;
+    gap: 8px;
+  }
+
+  .hud-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.1;
+  }
+
+  .hud-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #aad4f5;
+  }
+
+  .hud-value {
+    font-size: 20px;
+    color: var(--accent);
+    font-family: 'Fredoka One', cursive;
+  }
+
+  #lives-display { font-size: 22px; letter-spacing: 2px; }
+
+  /* Overlays */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    background: rgba(10,20,40,0.82);
+    backdrop-filter: blur(6px);
+    gap: 18px;
+    padding: 30px;
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 48px;
+    color: var(--accent);
+    text-shadow: 0 3px 12px rgba(0,0,0,0.5);
+    letter-spacing: 2px;
+  }
+
+  .overlay h2 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 30px;
+    color: var(--accent);
+  }
+
+  .overlay p {
+    color: #cde8ff;
+    font-size: 16px;
+    text-align: center;
+    max-width: 460px;
+    line-height: 1.5;
+  }
+
+  .overlay .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px 24px;
+    margin: 4px 0;
+  }
+
+  .stat-box {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 10px 16px;
+    text-align: center;
+  }
+
+  .stat-box .sv { font-size: 24px; color: var(--accent); font-family: 'Fredoka One', cursive; }
+  .stat-box .sl { font-size: 11px; color: #aad4f5; letter-spacing: 1px; text-transform: uppercase; }
+
+  .btn {
+    background: var(--accent);
+    color: #1a1a1a;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 32px;
+    font-size: 20px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 4px 16px rgba(249,224,75,0.4);
+    pointer-events: all;
+  }
+
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(249,224,75,0.5); }
+  .btn:active { transform: translateY(1px); }
+  .btn.secondary {
+    background: rgba(255,255,255,0.12);
+    color: #cde8ff;
+    box-shadow: none;
+  }
+  .btn.secondary:hover { background: rgba(255,255,255,0.2); }
+
+  /* Sound panel */
+  #sound-panel {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 14px 20px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .vol-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    color: #cde8ff;
+  }
+
+  .vol-row span:first-child { width: 80px; font-size: 13px; }
+  .vol-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .vol-row .vol-val { width: 32px; text-align: right; color: var(--accent); font-size: 14px; }
+
+  #pause-btn {
+    position: absolute;
+    top: 10px;
+    right: 54px;
+    z-index: 11;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 18px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: background 0.15s;
+  }
+
+  #pause-btn:hover { background: rgba(255,255,255,0.15); }
+
+  #controls-hint {
+    margin-top: 4px;
+    font-size: 13px;
+    color: #7ab8d9;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">❤️ Lives</div>
+      <div class="hud-value" id="lives-display">❤️❤️❤️</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">📏 Distance</div>
+      <div class="hud-value" id="hud-dist">0m</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">⏱ Time</div>
+      <div class="hud-value" id="hud-time">0:00</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">🧑 Rescued</div>
+      <div class="hud-value" id="hud-rescued">0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">🚀 Ammo</div>
+      <div class="hud-value" id="hud-ammo">∞</div>
+    </div>
+  </div>
+
+  <button id="pause-btn">⏸</button>
+
+  <!-- Start Screen -->
+  <div class="overlay" id="screen-start">
+    <h1>🚤 River Rescue</h1>
+    <p>Navigate treacherous waters, dodge obstacles, and rescue survivors! Fire missiles to clear the path — but watch your aim around civilians.</p>
+    <div id="sound-panel">
+      <div class="vol-row"><span>🔊 SFX</span><input type="range" id="vol-sfx" min="0" max="100" value="70"><span class="vol-val" id="lbl-sfx">70</span></div>
+      <div class="vol-row"><span>🎵 Music</span><input type="range" id="vol-music" min="0" max="100" value="50"><span class="vol-val" id="lbl-music">50</span></div>
+    </div>
+    <div id="controls-hint">⬆️⬇️⬅️➡️ Move &nbsp;|&nbsp; Space / Z Fire Missile &nbsp;|&nbsp; P Pause</div>
+    <button class="btn" id="btn-start">Set Sail! ⚓</button>
+  </div>
+
+  <!-- Pause Screen -->
+  <div class="overlay hidden" id="screen-pause">
+    <h2>⏸ Paused</h2>
+    <div id="sound-panel-pause">
+      <div class="vol-row"><span>🔊 SFX</span><input type="range" id="pvol-sfx" min="0" max="100" value="70"><span class="vol-val" id="plbl-sfx">70</span></div>
+      <div class="vol-row"><span>🎵 Music</span><input type="range" id="pvol-music" min="0" max="100" value="50"><span class="vol-val" id="plbl-music">50</span></div>
+    </div>
+    <div style="display:flex;gap:12px;">
+      <button class="btn" id="btn-resume">▶ Resume</button>
+      <button class="btn secondary" id="btn-quit">🏠 Menu</button>
+    </div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="overlay hidden" id="screen-gameover">
+    <h2>💀 Shipwrecked!</h2>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="sv" id="go-dist">0m</div><div class="sl">Distance</div></div>
+      <div class="stat-box"><div class="sv" id="go-time">0:00</div><div class="sl">Survived</div></div>
+      <div class="stat-box"><div class="sv" id="go-rescued">0</div><div class="sl">Rescued</div></div>
+    </div>
+    <button class="btn" id="btn-restart">Try Again 🚤</button>
+    <button class="btn secondary" id="btn-gomenu">🏠 Menu</button>
+  </div>
+</div>
+
+<script>
+// ─── AUDIO ENGINE ─────────────────────────────────────────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let ac = null;
+let sfxVol = 0.7, musicVol = 0.5;
+let musicNodes = null;
+
+function ensureAC() { if (!ac) ac = new AudioCtx(); if (ac.state === 'suspended') ac.resume(); }
+
+function playTone(freq, type, dur, vol=1, startFreq=null, endFreq=null) {
+  if (!ac) return;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol * sfxVol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  const o = ac.createOscillator();
+  o.type = type;
+  if (startFreq && endFreq) {
+    o.frequency.setValueAtTime(startFreq, ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(endFreq, ac.currentTime + dur);
+  } else {
+    o.frequency.value = freq;
+  }
+  o.connect(g); g.connect(ac.destination);
+  o.start(); o.stop(ac.currentTime + dur);
+}
+
+function playNoise(dur, vol=1) {
+  if (!ac) return;
+  const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i=0;i<data.length;i++) data[i] = (Math.random()*2-1);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const g = ac.createGain(); g.gain.setValueAtTime(vol*sfxVol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+dur);
+  const f = ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=200;
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+}
+
+const sfx = {
+  shoot: () => { ensureAC(); playTone(0,null,0.15,0.4,800,200,'sawtooth'); playTone(0,'sawtooth',0.15,0.4,800,200); },
+  hit:   () => { ensureAC(); playNoise(0.2, 0.5); playTone(0,'square',0.2,0.3,180,80); },
+  collect:()=>{ ensureAC(); playTone(523,'sine',0.08,0.5); setTimeout(()=>playTone(659,'sine',0.08,0.5),80); setTimeout(()=>playTone(784,'sine',0.12,0.5),160); },
+  explode:()=>{ ensureAC(); playNoise(0.35,0.8); playTone(0,'sawtooth',0.3,0.4,300,40); },
+  die:   () => { ensureAC(); [400,320,200,120].forEach((f,i)=>setTimeout(()=>playTone(f,'square',0.15,0.3),i*80)); },
+  gameover:()=>{ ensureAC(); [300,280,250,180].forEach((f,i)=>setTimeout(()=>playTone(f,'sawtooth',0.2,0.4),i*120)); },
+};
+
+// tiny chiptune music loop
+function startMusic() {
+  if (!ac || musicVol === 0) return;
+  stopMusic();
+  const melody = [261,293,329,349,392,349,329,293];
+  let i = 0, nodes = [];
+  function playNext() {
+    if (!musicNodes) return;
+    const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = melody[i%melody.length];
+    const g = ac.createGain(); g.gain.setValueAtTime(0, ac.currentTime); g.gain.linearRampToValueAtTime(musicVol*0.08, ac.currentTime+0.02);
+    g.gain.setValueAtTime(musicVol*0.08, ac.currentTime+0.12); g.gain.linearRampToValueAtTime(0, ac.currentTime+0.16);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.17);
+    i++;
+    musicNodes.timer = setTimeout(playNext, 170);
+  }
+  musicNodes = { timer: null };
+  playNext();
+}
+
+function stopMusic() {
+  if (musicNodes) { clearTimeout(musicNodes.timer); musicNodes = null; }
+}
+
+function updateMusicVol() {
+  // music vol changes take effect on next note; just update the var
+}
+
+// ─── CANVAS SETUP ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// ─── GAME STATE ───────────────────────────────────────────────────────────────
+let state = 'start'; // start | playing | paused | gameover
+let player, missiles, obstacles, survivors, particles;
+let scrollX, startTime, elapsed, lives, rescued, invincible, invincibleTimer, knockback;
+let lastSpawn, spawnInterval, speed, distanceTravelled;
+let bgLayers;
+
+// ─── EMOJI CONSTANTS ──────────────────────────────────────────────────────────
+const OBSTACLES_LIST = [
+  { emoji:'⛰️', w:70, h:60, hp:3, score:0 },
+  { emoji:'🪨', w:50, h:44, hp:2, score:0 },
+  { emoji:'🪵', w:64, h:36, hp:1, score:0 },
+  { emoji:'🌊', w:52, h:40, hp:1, score:0 },
+];
+const SURVIVOR_EMOJI = ['🧑','👩','🧒','👨','🙋','🙆'];
+
+// ─── PARALLAX LAYERS ──────────────────────────────────────────────────────────
+// Horizon is at H*0.62 (310px). Sky = 0..310, Water = 310..500.
+// Trees/plants sit ON the horizon line as a shoreline strip.
+function initBg() {
+  bgLayers = [
+    { elems: generateBgRow(12, '☁️', 20, H*0.04, H*0.22), speed: 0.3 },
+    { elems: generateBgRow(5,  '⛅', 30, H*0.08, H*0.28), speed: 0.5 },
+    { elems: generateBgRow(14, '🌳', 24, H*0.55, H*0.63), speed: 0.9 },
+    { elems: generateBgRow(18, '🌿', 14, H*0.60, H*0.65), speed: 1.2 },
+  ];
+}
+
+function generateBgRow(count, emoji, size, yMin, yMax) {
+  return Array.from({length: count}, (_, i) => ({
+    x: (W / count) * i + Math.random() * 40,
+    y: yMin + Math.random() * (yMax - yMin),
+    size,
+    emoji,
+  }));
+}
+
+// ─── INIT GAME ────────────────────────────────────────────────────────────────
+function initGame() {
+  player = { x: 120, y: H/2, w: 56, h: 40, vy: 0, vx: 0 };
+  missiles = []; obstacles = []; survivors = []; particles = [];
+  scrollX = 0; distanceTravelled = 0;
+  startTime = performance.now();
+  elapsed = 0; lives = 3; rescued = 0;
+  invincible = false; invincibleTimer = 0; knockback = { x: 0, y: 0 };
+  lastSpawn = 0; spawnInterval = 1800; speed = 3;
+  initBg();
+  updateHUD();
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if ((e.code === 'KeyP') && state === 'playing') pauseGame();
+  else if ((e.code === 'KeyP') && state === 'paused') resumeGame();
+  if ((e.code === 'Space' || e.code === 'KeyZ') && state === 'playing') fireMissile();
+  e.preventDefault && ['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code) && e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+let lastFire = 0;
+function fireMissile() {
+  const now = performance.now();
+  if (now - lastFire < 350) return;
+  lastFire = now;
+  missiles.push({ x: player.x + player.w, y: player.y + player.h/2 - 8, w: 32, h: 16 });
+  sfx.shoot();
+}
+
+// ─── SPAWNING ─────────────────────────────────────────────────────────────────
+function spawnEntity(now) {
+  if (now - lastSpawn < spawnInterval) return;
+  lastSpawn = now;
+
+  const roll = Math.random();
+  if (roll < 0.25) {
+    // survivor
+    const em = SURVIVOR_EMOJI[Math.floor(Math.random()*SURVIVOR_EMOJI.length)];
+    survivors.push({ x: W + 20, y: H*0.2 + Math.random()*(H*0.55), w: 36, h: 40, emoji: em });
+  } else {
+    // obstacle — maybe cluster
+    const tpl = OBSTACLES_LIST[Math.floor(Math.random()*OBSTACLES_LIST.length)];
+    const yBase = H*0.15 + Math.random()*(H*0.6);
+    const count = Math.random() < 0.3 ? 2 : 1;
+    for (let i = 0; i < count; i++) {
+      obstacles.push({ ...tpl, x: W + 20 + i*80, y: yBase + (Math.random()-0.5)*60, hp: tpl.hp });
+    }
+  }
+
+  // accelerate over time
+  spawnInterval = Math.max(700, 1800 - distanceTravelled * 0.4);
+  speed = Math.min(9, 3 + distanceTravelled * 0.003);
+}
+
+// ─── PARTICLES ────────────────────────────────────────────────────────────────
+function spawnParticles(x, y, emojis, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 1.5 + Math.random() * 3;
+    particles.push({
+      x, y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd,
+      life: 1, decay: 0.025+Math.random()*0.03,
+      emoji: emojis[Math.floor(Math.random()*emojis.length)],
+      size: 16 + Math.random()*12
+    });
+  }
+}
+
+// ─── COLLISION ────────────────────────────────────────────────────────────────
+function rectsOverlap(a, b) {
+  const pad = 8;
+  return a.x+pad < b.x+b.w-pad && a.x+a.w-pad > b.x+pad &&
+         a.y+pad < b.y+b.h-pad && a.y+a.h-pad > b.y+pad;
+}
+
+// ─── KNOCKBACK ────────────────────────────────────────────────────────────────
+function applyHit() {
+  if (invincible) return;
+  lives--;
+  sfx.hit();
+  if (lives <= 0) { endGame(); return; }
+  invincible = true; invincibleTimer = 2200;
+  knockback.x = -8; knockback.y = (Math.random()-0.5)*6;
+  spawnParticles(player.x, player.y, ['💥','💫','⭐'], 6);
+  updateHUD();
+}
+
+// ─── UPDATE ───────────────────────────────────────────────────────────────────
+let lastTick = 0;
+function update(now) {
+  const dt = Math.min(now - lastTick, 50);
+  lastTick = now;
+
+  elapsed = now - startTime;
+
+  // player movement
+  const spd = 4.5;
+  let dx = 0, dy = 0;
+  if (keys['ArrowUp']    || keys['KeyW']) dy = -spd;
+  if (keys['ArrowDown']  || keys['KeyS']) dy =  spd;
+  if (keys['ArrowLeft']  || keys['KeyA']) dx = -spd * 0.7;
+  if (keys['ArrowRight'] || keys['KeyD']) dx =  spd * 0.7;
+
+  // apply knockback decay
+  if (Math.abs(knockback.x) > 0.1) { dx += knockback.x; knockback.x *= 0.8; }
+  if (Math.abs(knockback.y) > 0.1) { dy += knockback.y; knockback.y *= 0.8; }
+
+  player.x = Math.max(10, Math.min(W - player.w - 10, player.x + dx));
+  player.y = Math.max(52, Math.min(H - player.h - 10, player.y + dy));
+
+  // invincibility
+  if (invincible) { invincibleTimer -= dt; if (invincibleTimer <= 0) invincible = false; }
+
+  // scrolling
+  scrollX += speed;
+  distanceTravelled += speed * 0.05;
+
+  // bg layers
+  bgLayers.forEach(l => { l.elems.forEach(e => { e.x -= l.speed; if (e.x < -60) e.x += W + 80; }); });
+
+  // missiles
+  missiles.forEach(m => m.x += 9);
+  missiles = missiles.filter(m => m.x < W + 50);
+
+  // spawn
+  spawnEntity(now);
+
+  // obstacles move
+  obstacles.forEach(o => o.x -= speed);
+  obstacles = obstacles.filter(o => o.x > -80);
+
+  // survivors move (slightly slower, bob)
+  survivors.forEach(s => { s.x -= speed * 0.8; s.y += Math.sin(now*0.003 + s.x)*0.3; });
+  survivors = survivors.filter(s => s.x > -50);
+
+  // particles
+  particles.forEach(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.life-=p.decay; });
+  particles = particles.filter(p => p.life > 0);
+
+  // missile vs obstacle
+  for (let mi = missiles.length-1; mi>=0; mi--) {
+    for (let oi = obstacles.length-1; oi>=0; oi--) {
+      if (rectsOverlap(missiles[mi], obstacles[oi])) {
+        obstacles[oi].hp--;
+        spawnParticles(obstacles[oi].x+obstacles[oi].w/2, obstacles[oi].y+obstacles[oi].h/2, ['💥','✨'], 5);
+        missiles.splice(mi, 1);
+        if (obstacles[oi].hp <= 0) { sfx.explode(); obstacles.splice(oi, 1); }
+        else { sfx.hit(); }
+        break;
+      }
+    }
+  }
+
+  // missile vs survivor (no penalty)
+  for (let mi = missiles.length-1; mi>=0; mi--) {
+    for (let si = survivors.length-1; si>=0; si--) {
+      if (rectsOverlap(missiles[mi], survivors[si])) {
+        spawnParticles(survivors[si].x, survivors[si].y, ['😵','💔','⭐'], 4);
+        sfx.explode();
+        missiles.splice(mi, 1);
+        survivors.splice(si, 1);
+        break;
+      }
+    }
+  }
+
+  // player vs obstacle
+  for (let oi = obstacles.length-1; oi>=0; oi--) {
+    if (rectsOverlap(player, obstacles[oi])) {
+      applyHit();
+      spawnParticles(player.x+player.w/2, player.y+player.h/2, ['💥','🌊'], 8);
+      obstacles.splice(oi, 1);
+      break;
+    }
+  }
+
+  // player vs survivor
+  for (let si = survivors.length-1; si>=0; si--) {
+    if (rectsOverlap(player, survivors[si])) {
+      rescued++;
+      sfx.collect();
+      spawnParticles(survivors[si].x, survivors[si].y, ['⭐','🎉','✨'], 8);
+      survivors.splice(si, 1);
+    }
+  }
+
+  updateHUD();
+}
+
+// ─── HUD ──────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('lives-display').textContent = '❤️'.repeat(Math.max(0,lives));
+  document.getElementById('hud-dist').textContent = Math.floor(distanceTravelled) + 'm';
+  const secs = Math.floor(elapsed/1000);
+  document.getElementById('hud-time').textContent = Math.floor(secs/60)+':'+(secs%60+'').padStart(2,'0');
+  document.getElementById('hud-rescued').textContent = rescued;
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────────────────────
+// flipX: mirror horizontally (for boat facing right)
+// rotateDeg: rotate in degrees (for rocket pointing right)
+function drawEmoji(emoji, x, y, size, flipX = false, rotateDeg = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (rotateDeg) ctx.rotate(rotateDeg * Math.PI / 180);
+  if (flipX) ctx.scale(-1, 1);
+  ctx.font = `${size}px serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(emoji, 0, 0);
+  ctx.restore();
+}
+
+function draw() {
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0, '#87ceeb');
+  sky.addColorStop(0.6, '#aedff7');
+  sky.addColorStop(0.62, '#1a6fa8');
+  sky.addColorStop(1, '#0d4a7a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,H);
+
+  // Parallax bg elements
+  bgLayers.forEach(l => {
+    l.elems.forEach(e => drawEmoji(e.emoji, e.x, e.y, e.size));
+  });
+
+  // Water waves — two rows, both below horizon (H*0.62 = 310)
+  const safeScroll = (scrollX || 0);
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  const waveRows = [
+    { y: H * 0.67, alpha: 0.15, count: 6, spacing: 140 },
+    { y: H * 0.78, alpha: 0.10, count: 5, spacing: 170 },
+  ];
+  waveRows.forEach(row => {
+    ctx.globalAlpha = row.alpha;
+    for (let i = 0; i < row.count; i++) {
+      const wx = ((safeScroll * 0.5 + i * row.spacing) % (W + 100)) - 30;
+      ctx.beginPath();
+      ctx.ellipse(wx, row.y, 38, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.restore();
+
+  // Obstacles
+  obstacles.forEach(o => {
+    drawEmoji(o.emoji, o.x + o.w/2, o.y + o.h/2, o.w * 0.85);
+    // HP bar
+    if (o.hp > 1) {
+      const tpl = OBSTACLES_LIST.find(t=>t.emoji===o.emoji);
+      const ratio = o.hp / (tpl ? tpl.hp : 1);
+      ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(o.x, o.y-8, o.w, 5);
+      ctx.fillStyle='#52e06a'; ctx.fillRect(o.x, o.y-8, o.w*ratio, 5);
+    }
+  });
+
+  // Survivors (bobbing glow)
+  survivors.forEach(s => {
+    ctx.save();
+    ctx.shadowColor='#52e06a'; ctx.shadowBlur=10;
+    drawEmoji(s.emoji, s.x+s.w/2, s.y+s.h/2, 28);
+    ctx.restore();
+    // rescue ring
+    ctx.strokeStyle='rgba(82,224,106,0.5)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(s.x+s.w/2, s.y+s.h/2, 22, 0, Math.PI*2); ctx.stroke();
+  });
+
+  // Missiles — rocket rotated 90° clockwise so it points right, flame behind
+  missiles.forEach(m => {
+    ctx.save();
+    ctx.shadowColor='#f9e04b'; ctx.shadowBlur=14;
+    // flame trail sits to the LEFT of the rocket (behind it)
+    ctx.globalAlpha=0.65;
+    drawEmoji('🔥', m.x + 2, m.y + m.h/2, 20, false, 90);
+    ctx.globalAlpha=1;
+    drawEmoji('🚀', m.x + m.w/2 + 4, m.y + m.h/2, 28, false, 90);
+    ctx.restore();
+  });
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save(); ctx.globalAlpha = p.life;
+    drawEmoji(p.emoji, p.x, p.y, p.size);
+    ctx.restore();
+  });
+
+  // Player — flipped so boat faces right (toward oncoming obstacles)
+  ctx.save();
+  if (invincible) {
+    ctx.globalAlpha = 0.5 + 0.5*Math.sin(performance.now()*0.02);
+    ctx.shadowColor='#fff'; ctx.shadowBlur=18;
+  }
+  drawEmoji('🚤', player.x + player.w/2, player.y + player.h/2, 44, true);
+  ctx.restore();
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.35)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W,H);
+}
+
+// ─── GAME LOOP ────────────────────────────────────────────────────────────────
+let rafId = null;
+function loop(now) {
+  if (state !== 'playing') return;
+  update(now);
+  draw();
+  rafId = requestAnimationFrame(loop);
+}
+
+// ─── STATE TRANSITIONS ────────────────────────────────────────────────────────
+function startGame() {
+  ensureAC();
+  initGame();
+  state = 'playing';
+  showScreen(null);
+  lastTick = performance.now();
+  rafId = requestAnimationFrame(loop);
+  startMusic();
+}
+
+function pauseGame() {
+  if (state !== 'playing') return;
+  state = 'paused';
+  cancelAnimationFrame(rafId);
+  stopMusic();
+  showScreen('screen-pause');
+  syncPauseVolumes();
+}
+
+function resumeGame() {
+  if (state !== 'paused') return;
+  state = 'playing';
+  showScreen(null);
+  lastTick = performance.now();
+  startTime = performance.now() - elapsed;
+  rafId = requestAnimationFrame(loop);
+  startMusic();
+}
+
+function endGame() {
+  state = 'gameover';
+  cancelAnimationFrame(rafId);
+  stopMusic();
+  sfx.gameover();
+  const secs = Math.floor(elapsed/1000);
+  document.getElementById('go-dist').textContent = Math.floor(distanceTravelled)+'m';
+  document.getElementById('go-time').textContent = Math.floor(secs/60)+':'+(secs%60+'').padStart(2,'0');
+  document.getElementById('go-rescued').textContent = rescued;
+  showScreen('screen-gameover');
+}
+
+function showScreen(id) {
+  ['screen-start','screen-pause','screen-gameover'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+// ─── VOLUME CONTROLS ──────────────────────────────────────────────────────────
+function wireVolume(rangeId, labelId, setter) {
+  const el = document.getElementById(rangeId);
+  const lbl = document.getElementById(labelId);
+  el.addEventListener('input', () => {
+    lbl.textContent = el.value;
+    setter(el.value / 100);
+  });
+}
+
+wireVolume('vol-sfx',   'lbl-sfx',   v => sfxVol = v);
+wireVolume('vol-music', 'lbl-music', v => { musicVol = v; });
+wireVolume('pvol-sfx',  'plbl-sfx',  v => { sfxVol = v; document.getElementById('vol-sfx').value = v*100; document.getElementById('lbl-sfx').textContent = Math.round(v*100); });
+wireVolume('pvol-music','plbl-music',v => { musicVol = v; document.getElementById('vol-music').value = v*100; document.getElementById('lbl-music').textContent = Math.round(v*100); });
+
+function syncPauseVolumes() {
+  document.getElementById('pvol-sfx').value   = sfxVol * 100;  document.getElementById('plbl-sfx').textContent   = Math.round(sfxVol*100);
+  document.getElementById('pvol-music').value = musicVol * 100; document.getElementById('plbl-music').textContent = Math.round(musicVol*100);
+}
+
+// ─── BUTTONS ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', startGame);
+document.getElementById('btn-gomenu').addEventListener('click', () => { state='start'; stopMusic(); showScreen('screen-start'); });
+document.getElementById('btn-resume').addEventListener('click', resumeGame);
+document.getElementById('btn-quit').addEventListener('click', () => { state='start'; stopMusic(); showScreen('screen-start'); });
+document.getElementById('pause-btn').addEventListener('click', () => { if(state==='playing') pauseGame(); else if(state==='paused') resumeGame(); });
+
+// ─── INITIAL DRAW ─────────────────────────────────────────────────────────────
+(function drawTitle() {
+  scrollX = 0;
+  initBg();
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#87ceeb'); sky.addColorStop(0.6,'#aedff7'); sky.addColorStop(0.62,'#1a6fa8'); sky.addColorStop(1,'#0d4a7a');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  bgLayers.forEach(l=>l.elems.forEach(e=>drawEmoji(e.emoji,e.x,e.y,e.size)));
+})();
+</script>
+</body>
+</html>
